@@ -8,7 +8,23 @@
 
 static void view_map(struct wl_listener *listener, void *data) {
     struct hermit_view *view = wl_container_of(listener, view, map);
+    wlr_log(WLR_DEBUG, "View mapped: %s",
+        view->xdg_toplevel->title ? view->xdg_toplevel->title : "untitled");
+
+    struct wlr_box geo;
+    wlr_surface_get_extents(view->xdg_toplevel->base->surface, &geo);
+    wlr_log(WLR_DEBUG, "View geometry: %dx%d at %d,%d",
+        geo.width, geo.height, geo.x, geo.y);
+
     wl_list_insert(&view->server->views, &view->link);
+
+    // give it keyboard focus immediately on map
+    struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(view->server->seat);
+    wlr_seat_keyboard_notify_enter(view->server->seat,
+        view->xdg_toplevel->base->surface,
+        keyboard ? keyboard->keycodes : NULL,
+        keyboard ? keyboard->num_keycodes : 0,
+        keyboard ? &keyboard->modifiers : NULL);
 }
 
 static void view_unmap(struct wl_listener *listener, void *data) {
@@ -23,10 +39,20 @@ static void view_destroy(struct wl_listener *listener, void *data) {
     wl_list_remove(&view->destroy.link);
     wl_list_remove(&view->request_maximize.link);
     wl_list_remove(&view->request_fullscreen.link);
+    wl_list_remove(&view->commit.link);
     if (view->link.next) {
         wl_list_remove(&view->link);
     }
     free(view);
+}
+
+static void view_commit(struct wl_listener *listener, void *data) {
+    struct hermit_view *view = wl_container_of(listener, view, commit);
+    
+    if (!view->initial_configure_sent) {
+        wlr_xdg_surface_schedule_configure(view->xdg_toplevel->base);
+        view->initial_configure_sent = true;
+    }
 }
 
 static void view_request_maximize(struct wl_listener *listener, void *data) {
@@ -49,6 +75,8 @@ static void server_new_xdg_toplevel(struct wl_listener *listener, void *data) {
     view->scene_tree = wlr_scene_xdg_surface_create(&server->scene->tree, xdg_toplevel->base);
     view->scene_tree->node.data = view;
     xdg_toplevel->base->data = view->scene_tree;
+    view->commit.notify = view_commit;
+    wl_signal_add(&xdg_toplevel->base->surface->events.commit, &view->commit);
     
     view->map.notify = view_map;
     wl_signal_add(&xdg_toplevel->base->surface->events.map, &view->map);
