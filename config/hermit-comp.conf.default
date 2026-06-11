@@ -1,0 +1,5 @@
+# hermit-comp default config
+# ~/.config/hermit/hermit-comp.conf
+
+bind = SUPER+Return, launch, alacritty
+bind = SUPER+SHIFT+E, quit
