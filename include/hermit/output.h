@@ -16,3 +16,4 @@ struct hermit_output {
 };
 
 void hermit_output_manager_init(struct hermit_server *server);
+void hermit_outputs_apply_config(struct hermit_server *server);

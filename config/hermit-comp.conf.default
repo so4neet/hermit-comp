@@ -1,5 +1,35 @@
-# hermit-comp default config
-# ~/.config/hermit/hermit-comp.conf
+# Hermit-Comp default config @ ~/.config/hermit/hermit-comp.conf
+# Mode
+default_mode = floating
 
-bind = SUPER+Return, launch, alacritty
+# Keybinds
+bind = SUPER+M, toggle_mode
+bind = SUPER+Return, exec, alacritty
+bind = SUPER+SHIFT+Q, close
 bind = SUPER+SHIFT+E, quit
+bind = SUPER+Left, move_window, left
+bind = SUPER+Right, move_window, right
+bind = SUPER+Up, move_window, up
+bind = SUPER+Down, move_window, down
+bind = SUPER+1, workspace, 1
+bind = SUPER+2, workspace, 2
+
+# Tiling
+split_ratio = 0.5
+
+# Float rules (always float regardless of mode)
+float_rule = steam
+float_rule = pavucontrol
+float_rule = nm-applet
+
+# Small window auto-float threshold
+force_float_max_size = 400x400
+
+# Gaps (tiling mode only)
+gaps_inner = 8
+gaps_outer = 16
+
+# Borders
+border_width = 2
+border_color_active = 0x6699cc
+border_color_inactive = 0x333333

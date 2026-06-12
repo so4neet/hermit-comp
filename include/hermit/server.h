@@ -11,6 +11,7 @@
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <hermit/config.h>
 
 struct hermit_server {
     struct wl_display               *display;
@@ -36,6 +37,8 @@ struct hermit_server {
     struct wl_listener               cursor_button;
     struct wl_listener               cursor_axis;
     struct wl_listener               cursor_frame;
+    struct hermit_config             *config;
+    char   socket[256];
 };
 
 bool hermit_server_init(struct hermit_server *server);

@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
@@ -11,6 +11,7 @@
 #include <hermit/input.h>
 #include <hermit/server.h>
 #include <hermit/view.h>
+#include <hermit/config.h>
 
 static struct hermit_view *view_at(struct hermit_server *server,
         double lx, double ly,
@@ -56,14 +57,46 @@ static void keyboard_modifiers(struct wl_listener *listener, void *data) {
     wlr_seat_keyboard_notify_modifiers(keyboard->server->seat, &keyboard->wlr_keyboard->modifiers);
 }
 
-static bool handle_keybind(struct hermit_server *server, xkb_keysym_t sym) {
-    switch (sym) {
-        case XKB_KEY_Escape:
-            wl_display_terminate(server->display);
+static bool handle_keybind(struct hermit_server *server, uint32_t mods, xkb_keysym_t sym) {
+    sym = xkb_keysym_to_lower(sym);
+    
+    mods &= ~WLR_MODIFIER_CAPS;
+    mods &= ~WLR_MODIFIER_MOD2;
+    
+    struct hermit_config *config = server->config;
+        wlr_log(WLR_INFO, "handle_keybind: mods=0x%x sym=0x%x keybind_count=%d",
+        mods, sym, server->config->keybind_count);
+    for (int i=0; i<config->keybind_count; i++) {
+        struct hermit_keybind *bind = &config->keybinds[i];
+                wlr_log(WLR_INFO, "  bind[%d]: mods=0x%x sym=0x%x",
+            i, bind->modifiers, bind->key);
+        if (bind->modifiers == mods && bind->key == sym) {
+                        wlr_log(WLR_INFO, "  MATCHED bind[%d]", i);
+            switch (bind->action) {
+                case HERMIT_ACTION_EXEC:
+                    wlr_log(WLR_INFO, "Executing %s", bind->arg);
+                    if (fork() == 0) {
+                        setenv("WAYLAND_DISPLAY", server->socket, true);
+                        execl("/bin/sh", "/bin/sh", "-c", bind->arg, NULL);
+                    }
+                    break;
+                case HERMIT_ACTION_QUIT:
+                    wl_display_terminate(server->display);
+                    break;
+                case HERMIT_ACTION_CLOSE:
+                    if (!wl_list_empty(&server->views)) {
+                        struct hermit_view *view;
+                        wl_list_for_each(view, &server->views, link) {
+                            wlr_xdg_toplevel_send_close(view->xdg_toplevel);
+                            break;
+                        }
+                    }
+                    break;
+            }
             return true;
-        default:
-            return false;
+          }
     }
+    return false;
 }
 
 static void keyboard_key(struct wl_listener *listener, void *data) {
@@ -74,16 +107,14 @@ static void keyboard_key(struct wl_listener *listener, void *data) {
     uint32_t keycode = event->keycode + 8;
     const xkb_keysym_t *syms;
     int nsyms = xkb_state_key_get_syms(keyboard->wlr_keyboard->xkb_state, keycode, &syms);
-    
     bool handled = false;
-//    uint32_t mods = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
-    
+    uint32_t mods = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
     if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
         for (int i=0; i<nsyms; i++) {
-            handled = handle_keybind(keyboard->server, syms[i]);
+            handled = handle_keybind(keyboard->server, mods, syms[i]);
+            if (handled) break;
         }
     }
-    
     if (!handled) {
         wlr_seat_set_keyboard(seat, keyboard->wlr_keyboard);
         wlr_seat_keyboard_notify_key(seat, event->time_msec, event->keycode, event->state);

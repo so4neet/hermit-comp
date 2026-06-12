@@ -7,6 +7,8 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <hermit/output.h>
 #include <hermit/server.h>
+#include <hermit/config.h>
+#include <limits.h>
 
 static void output_frame(struct wl_listener *listener, void *data) {
     struct hermit_output *output = wl_container_of(listener, output, frame);
@@ -36,6 +38,99 @@ static void output_destroy(struct wl_listener *listener, void *data) {
     free(output);
 }
 
+static struct hermit_monitor_config *find_monitor_config(struct hermit_server *server, const char *name) {
+    struct hermit_config *config = server->config;
+    struct hermit_monitor_config *wildcard = NULL;
+    
+    for (int i=0; i<config->monitor_count; i++) {
+        struct hermit_monitor_config *mon = &config->monitors[i];
+        if (strcmp(mon->name, name) == 0)
+            return mon;
+    }
+    return wildcard;
+}
+
+static void apply_monitor_config(struct wlr_output *output,
+        struct hermit_monitor_config *mon) {
+    struct wlr_output_state state;
+    wlr_output_state_init(&state);
+    wlr_output_state_set_enabled(&state, true);
+
+    if (mon && (mon->width > 0 && mon->height > 0)) {
+        struct wlr_output_mode *mode, *best = NULL;
+        wl_list_for_each(mode, &output->modes, link) {
+            if (mode->width == mon->width && mode->height == mon->height) {
+                int diff_mode = abs(mode->refresh - mon->refresh * 1000);
+                int diff_best = best ? abs(best->refresh - mon->refresh * 1000) : INT_MAX;
+                if (!best || (mon->refresh > 0 && diff_mode < diff_best))
+                    best = mode;
+            }
+        }
+        if (best) {
+            wlr_log(WLR_INFO, "Applying mode %dx%d@%dmHz on %s",
+                best->width, best->height, best->refresh, output->name);
+            wlr_output_state_set_mode(&state, best);
+        } else {
+            wlr_log(WLR_INFO, "No matching mode found for %s, using preferred",
+                output->name);
+            struct wlr_output_mode *preferred = wlr_output_preferred_mode(output);
+            if (preferred)
+                wlr_output_state_set_mode(&state, preferred);
+        }
+    } else {
+        wlr_log(WLR_INFO, "Using preferred mode for %s", output->name);
+        struct wlr_output_mode *preferred = wlr_output_preferred_mode(output);
+        if (preferred)
+            wlr_output_state_set_mode(&state, preferred);
+    }
+
+    bool ok = wlr_output_commit_state(output, &state);
+    wlr_log(WLR_INFO, "Commit result for %s: %s", output->name, ok ? "ok" : "FAILED");
+    wlr_output_state_finish(&state);
+}
+
+void hermit_outputs_apply_config(struct hermit_server *server) {
+    struct hermit_output *output;
+    wl_list_for_each(output, &server->outputs, link) {
+        struct hermit_monitor_config *mon =
+            find_monitor_config(server, output->wlr_output->name);
+        if (!mon) continue;
+
+        struct wlr_output_state state;
+        wlr_output_state_init(&state);
+        wlr_output_state_set_enabled(&state, true);
+
+        if (mon->width > 0 && mon->height > 0) {
+            struct wlr_output_mode *mode, *best = NULL;
+            wl_list_for_each(mode, &output->wlr_output->modes, link) {
+                if (mode->width == mon->width && mode->height == mon->height) {
+                    int diff_mode = abs(mode->refresh - mon->refresh * 1000);
+                    int diff_best = best ?
+                        abs(best->refresh - mon->refresh * 1000) : INT_MAX;
+                    if (!best || (mon->refresh > 0 && diff_mode < diff_best))
+                        best = mode;
+                }
+            }
+            if (best) {
+                wlr_log(WLR_INFO, "Applying mode %dx%d@%dmHz on %s",
+                    best->width, best->height, best->refresh,
+                    output->wlr_output->name);
+                wlr_output_state_set_mode(&state, best);
+            }
+        }
+
+        bool ok = wlr_output_commit_state(output->wlr_output, &state);
+        wlr_log(WLR_INFO, "Mode commit for %s: %s",
+            output->wlr_output->name, ok ? "ok" : "FAILED");
+        wlr_output_state_finish(&state);
+
+        if (mon->x != 0 || mon->y != 0) {
+            wlr_output_layout_add(server->output_layout,
+                output->wlr_output, mon->x, mon->y);
+        }
+    }
+}
+
 static void server_new_output(struct wl_listener *listener, void *data) {
     struct hermit_server *server =
         wl_container_of(listener, server, new_output);
@@ -46,11 +141,9 @@ static void server_new_output(struct wl_listener *listener, void *data) {
     struct wlr_output_state state;
     wlr_output_state_init(&state);
     wlr_output_state_set_enabled(&state, true);
-
     struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
     if (mode)
         wlr_output_state_set_mode(&state, mode);
-
     wlr_output_commit_state(wlr_output, &state);
     wlr_output_state_finish(&state);
 
@@ -60,10 +153,8 @@ static void server_new_output(struct wl_listener *listener, void *data) {
 
     output->frame.notify = output_frame;
     wl_signal_add(&wlr_output->events.frame, &output->frame);
-
     output->request_state.notify = output_request_state;
     wl_signal_add(&wlr_output->events.request_state, &output->request_state);
-
     output->destroy.notify = output_destroy;
     wl_signal_add(&wlr_output->events.destroy, &output->destroy);
 
@@ -73,7 +164,7 @@ static void server_new_output(struct wl_listener *listener, void *data) {
         wlr_output_layout_add_auto(server->output_layout, wlr_output);
     struct wlr_scene_output *scene_output =
         wlr_scene_output_create(server->scene, wlr_output);
-    wlr_scene_output_layout_add_output(server->scene_output_layout, 
+    wlr_scene_output_layout_add_output(server->scene_output_layout,
         layout_output, scene_output);
 }
 

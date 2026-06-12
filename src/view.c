@@ -8,17 +8,30 @@
 
 static void view_map(struct wl_listener *listener, void *data) {
     struct hermit_view *view = wl_container_of(listener, view, map);
-    wlr_log(WLR_DEBUG, "View mapped: %s",
-        view->xdg_toplevel->title ? view->xdg_toplevel->title : "untitled");
 
     struct wlr_box geo;
     wlr_surface_get_extents(view->xdg_toplevel->base->surface, &geo);
-    wlr_log(WLR_DEBUG, "View geometry: %dx%d at %d,%d",
-        geo.width, geo.height, geo.x, geo.y);
+
+    struct wlr_output *output = wlr_output_layout_output_at(
+        view->server->output_layout,
+        view->server->cursor->x,
+        view->server->cursor->y);
+
+    if (output) {
+        struct wlr_box output_box;
+        wlr_output_layout_get_box(view->server->output_layout,
+            output, &output_box);
+
+        int x = output_box.x + (output_box.width - geo.width) / 2;
+        int y = output_box.y + (output_box.height - geo.height) / 2;
+
+        wlr_scene_node_set_position(&view->scene_tree->node, x, y);
+        wlr_log(WLR_INFO, "Placing window at %d,%d on output %s",
+            x, y, output->name);
+    }
 
     wl_list_insert(&view->server->views, &view->link);
 
-    // give it keyboard focus immediately on map
     struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(view->server->seat);
     wlr_seat_keyboard_notify_enter(view->server->seat,
         view->xdg_toplevel->base->surface,

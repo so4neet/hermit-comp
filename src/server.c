@@ -47,12 +47,14 @@ void hermit_server_run(struct hermit_server *server) {
         wlr_log(WLR_ERROR, "Failed to create Wayland socket.");
         return;
     }
-    
+    snprintf(server->socket, sizeof(server->socket), "%s", socket);
     if (!wlr_backend_start(server->backend)) {
         wlr_log(WLR_ERROR, "Failed to start wlroots backend.");
         return;
     }
     
+    hermit_outputs_apply_config(server);
+
     wlr_log(WLR_INFO, "hermit-comp running on WAYLAND_DISPLAY=%s", socket);
     wl_display_run(server->display);
 }
