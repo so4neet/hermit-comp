@@ -15,6 +15,7 @@
 
 struct hermit_server {
     struct wl_display               *display;
+    struct wlr_session               *session;
     struct wlr_backend              *backend;
     struct wlr_renderer             *renderer;
     struct wlr_allocator            *allocator;
@@ -38,6 +39,7 @@ struct hermit_server {
     struct wl_listener               cursor_axis;
     struct wl_listener               cursor_frame;
     struct hermit_config             *config;
+    struct hermit_view               *focused_view;
     char   socket[256];
 };
 

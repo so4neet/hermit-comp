@@ -3,6 +3,7 @@
 #include <wayland-server-core.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_scene.h>
+#include <hermit/workspace.h>
 
 struct hermit_server;
 
@@ -13,6 +14,10 @@ struct hermit_output {
     struct wl_listener   frame;
     struct wl_listener   request_state;
     struct wl_listener   destroy;
+    
+    struct hermit_workspace workspaces[HERMIT_MAX_WORKSPACES];
+    int    workspace_count;
+    struct hermit_workspace *active_workspace;
 };
 
 void hermit_output_manager_init(struct hermit_server *server);

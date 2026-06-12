@@ -50,6 +50,8 @@ struct hermit_monitor_config {
     int x;
     int y;
     bool disabled;
+    int ws_start;
+    int ws_end;
 };
 
 struct hermit_config {

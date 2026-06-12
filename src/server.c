@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/util/log.h>
+#include <wlr/backend/session.h>
 #include <hermit/server.h>
 #include <hermit/output.h>
 #include <hermit/view.h>
@@ -13,7 +14,7 @@ bool hermit_server_init(struct hermit_server *server) {
         wlr_log(WLR_ERROR, "Failed to create Wayland display.");
         return false;
     }
-    server->backend = wlr_backend_autocreate(wl_display_get_event_loop(server->display), NULL);
+    server->backend = wlr_backend_autocreate(wl_display_get_event_loop(server->display), &server->session);
     if (!server->backend) {
         wlr_log(WLR_ERROR, "Failed to create wlroots backend.");
         return false;
@@ -38,6 +39,11 @@ bool hermit_server_init(struct hermit_server *server) {
     hermit_output_manager_init(server);
     hermit_view_manager_init(server);
     hermit_input_manager_init(server);
+    if (server->session) {
+        wlr_log(WLR_INFO, "Acquired session on seat %d.", server->session->seat);
+    } else {
+        wlr_log(WLR_ERROR, "Couldn't acquire session.");
+    }
     return true;
 }
 
@@ -54,7 +60,7 @@ void hermit_server_run(struct hermit_server *server) {
     }
     
     hermit_outputs_apply_config(server);
-
+    hermit_workspaces_init(server);
     wlr_log(WLR_INFO, "hermit-comp running on WAYLAND_DISPLAY=%s", socket);
     wl_display_run(server->display);
 }

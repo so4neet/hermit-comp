@@ -12,6 +12,8 @@
 #include <hermit/server.h>
 #include <hermit/view.h>
 #include <hermit/config.h>
+#include <hermit/workspace.h>
+#include <hermit/output.h>
 
 static struct hermit_view *view_at(struct hermit_server *server,
         double lx, double ly,
@@ -80,17 +82,25 @@ static bool handle_keybind(struct hermit_server *server, uint32_t mods, xkb_keys
                         execl("/bin/sh", "/bin/sh", "-c", bind->arg, NULL);
                     }
                     break;
+                case HERMIT_ACTION_WORKSPACE: {
+                    int index = atoi(bind->arg);
+                    struct hermit_output *output = hermit_output_for_workspace(server, index);
+                    if (output)
+                        hermit_workspace_switch(output, index);
+                    break;
+                }
+                case HERMIT_ACTION_MOVE_TO_WORKSPACE: {
+                    int index = atoi(bind->arg);
+                    if (server->focused_view)
+                        hermit_workspace_move_view(server->focused_view, index);
+                    break;
+                }
                 case HERMIT_ACTION_QUIT:
                     wl_display_terminate(server->display);
                     break;
                 case HERMIT_ACTION_CLOSE:
-                    if (!wl_list_empty(&server->views)) {
-                        struct hermit_view *view;
-                        wl_list_for_each(view, &server->views, link) {
-                            wlr_xdg_toplevel_send_close(view->xdg_toplevel);
-                            break;
-                        }
-                    }
+                    if (server->focused_view)
+                        wlr_xdg_toplevel_send_close(server->focused_view->xdg_toplevel);
                     break;
             }
             return true;

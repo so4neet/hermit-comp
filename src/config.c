@@ -174,8 +174,9 @@ static void parse_line(struct hermit_config *config, const char *key, const char
             return;
         }
         struct hermit_monitor_config *mon = &config->monitors[config->monitor_count];
-        char res[32] = {0}, refresh[32] = {0};
-        char x[32] = {0}, y[32] = {0};
+        
+        mon->ws_start = 1;
+        mon->ws_end   = 5;
         
         char buf[512];
         strncpy(buf, value, sizeof(buf)-1);
@@ -184,6 +185,7 @@ static void parse_line(struct hermit_config *config, const char *key, const char
         char *ref_s  = strtok(NULL, ",");
         char *x_s    = strtok(NULL, ",");
         char *y_s    = strtok(NULL, ",");
+        char *ws_s   = strtok(NULL, ",");
         
         if (!name_s) {
             wlr_log(WLR_ERROR, "Invalid monitor config: %s", value);
@@ -213,6 +215,13 @@ static void parse_line(struct hermit_config *config, const char *key, const char
         
         if (x_s) mon->x = atoi(trim(x_s));
         if (y_s) mon->y = atoi(trim(y_s));
+        
+        if (ws_s) {
+            ws_s = trim(ws_s);
+            char *eq = strchr(ws_s, '=');
+            if (eq) ws_s = eq + 1;
+            sscanf(ws_s, "%d-%d", &mon->ws_start, &mon->ws_end);
+        }
         
         config->monitor_count++;
     } else {

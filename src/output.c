@@ -50,45 +50,6 @@ static struct hermit_monitor_config *find_monitor_config(struct hermit_server *s
     return wildcard;
 }
 
-static void apply_monitor_config(struct wlr_output *output,
-        struct hermit_monitor_config *mon) {
-    struct wlr_output_state state;
-    wlr_output_state_init(&state);
-    wlr_output_state_set_enabled(&state, true);
-
-    if (mon && (mon->width > 0 && mon->height > 0)) {
-        struct wlr_output_mode *mode, *best = NULL;
-        wl_list_for_each(mode, &output->modes, link) {
-            if (mode->width == mon->width && mode->height == mon->height) {
-                int diff_mode = abs(mode->refresh - mon->refresh * 1000);
-                int diff_best = best ? abs(best->refresh - mon->refresh * 1000) : INT_MAX;
-                if (!best || (mon->refresh > 0 && diff_mode < diff_best))
-                    best = mode;
-            }
-        }
-        if (best) {
-            wlr_log(WLR_INFO, "Applying mode %dx%d@%dmHz on %s",
-                best->width, best->height, best->refresh, output->name);
-            wlr_output_state_set_mode(&state, best);
-        } else {
-            wlr_log(WLR_INFO, "No matching mode found for %s, using preferred",
-                output->name);
-            struct wlr_output_mode *preferred = wlr_output_preferred_mode(output);
-            if (preferred)
-                wlr_output_state_set_mode(&state, preferred);
-        }
-    } else {
-        wlr_log(WLR_INFO, "Using preferred mode for %s", output->name);
-        struct wlr_output_mode *preferred = wlr_output_preferred_mode(output);
-        if (preferred)
-            wlr_output_state_set_mode(&state, preferred);
-    }
-
-    bool ok = wlr_output_commit_state(output, &state);
-    wlr_log(WLR_INFO, "Commit result for %s: %s", output->name, ok ? "ok" : "FAILED");
-    wlr_output_state_finish(&state);
-}
-
 void hermit_outputs_apply_config(struct hermit_server *server) {
     struct hermit_output *output;
     wl_list_for_each(output, &server->outputs, link) {

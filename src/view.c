@@ -5,44 +5,53 @@
 #include <wlr/types/wlr_scene.h>
 #include <hermit/view.h>
 #include <hermit/server.h>
+#include <hermit/output.h>
 
 static void view_map(struct wl_listener *listener, void *data) {
     struct hermit_view *view = wl_container_of(listener, view, map);
-
-    struct wlr_box geo;
-    wlr_surface_get_extents(view->xdg_toplevel->base->surface, &geo);
-
-    struct wlr_output *output = wlr_output_layout_output_at(
+    
+    struct wlr_output *wlr_output = wlr_output_layout_output_at(
         view->server->output_layout,
         view->server->cursor->x,
         view->server->cursor->y);
-
-    if (output) {
+        
+    struct hermit_output *output = NULL;
+    struct hermit_output *o;
+    wl_list_for_each(o, &view->server->outputs, link) {
+        if (o->wlr_output == wlr_output) {
+            output = o;
+            break;
+        }
+    }
+    
+    if (output && output->active_workspace) {
+        view->workspace = output->active_workspace;
+        wl_list_insert(&output->active_workspace->views, &view->link);
+    } else {
+        wl_list_insert(&view->server->views, &view->link);
+    }
+    
+    if (wlr_output) {
         struct wlr_box output_box;
-        wlr_output_layout_get_box(view->server->output_layout,
-            output, &output_box);
-
+        wlr_output_layout_get_box(view->server->output_layout, wlr_output, &output_box);
+        struct wlr_box geo;
+        wlr_surface_get_extents(view->xdg_toplevel->base->surface, &geo);
         int x = output_box.x + (output_box.width - geo.width) / 2;
         int y = output_box.y + (output_box.height - geo.height) / 2;
-
         wlr_scene_node_set_position(&view->scene_tree->node, x, y);
-        wlr_log(WLR_INFO, "Placing window at %d,%d on output %s",
-            x, y, output->name);
     }
-
-    wl_list_insert(&view->server->views, &view->link);
-
     struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(view->server->seat);
     wlr_seat_keyboard_notify_enter(view->server->seat,
         view->xdg_toplevel->base->surface,
         keyboard ? keyboard->keycodes : NULL,
         keyboard ? keyboard->num_keycodes : 0,
         keyboard ? &keyboard->modifiers : NULL);
+    view->server->focused_view = view;
 }
-
 static void view_unmap(struct wl_listener *listener, void *data) {
     struct hermit_view *view = wl_container_of(listener, view, unmap);
     wl_list_remove(&view->link);
+    view->workspace = NULL;
 }
 
 static void view_destroy(struct wl_listener *listener, void *data) {
