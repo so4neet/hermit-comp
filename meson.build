@@ -12,7 +12,8 @@ sources = files(
     'src/view.c',
     'src/input.c',
     'src/config.c',
-    'src/workspace.c'
+    'src/workspace.c',
+    'src/logger.c'
 )
 
 executable('hermit-comp',

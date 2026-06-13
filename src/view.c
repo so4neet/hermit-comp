@@ -48,6 +48,7 @@ static void view_map(struct wl_listener *listener, void *data) {
         keyboard ? &keyboard->modifiers : NULL);
     view->server->focused_view = view;
 }
+
 static void view_unmap(struct wl_listener *listener, void *data) {
     struct hermit_view *view = wl_container_of(listener, view, unmap);
     wl_list_remove(&view->link);
@@ -62,9 +63,8 @@ static void view_destroy(struct wl_listener *listener, void *data) {
     wl_list_remove(&view->request_maximize.link);
     wl_list_remove(&view->request_fullscreen.link);
     wl_list_remove(&view->commit.link);
-    if (view->link.next) {
-        wl_list_remove(&view->link);
-    }
+    if (view->server->focused_view == view)
+        view->server->focused_view = NULL;
     free(view);
 }
 

@@ -16,9 +16,10 @@
 #include <hermit/output.h>
 
 static struct hermit_view *view_at(struct hermit_server *server,
-        double lx, double ly,
-        struct wlr_surface **surface,
-        double *sx, double *sy) {
+                                    double lx, double ly,
+                                    struct wlr_surface **surface,
+                                    double *sx, double *sy) {
+                                        
     struct wlr_scene_node *node = wlr_scene_node_at(
         &server->scene->tree.node, lx, ly, sx, sy);
     if (!node || node->type != WLR_SCENE_NODE_BUFFER)
@@ -61,50 +62,52 @@ static void keyboard_modifiers(struct wl_listener *listener, void *data) {
 
 static bool handle_keybind(struct hermit_server *server, uint32_t mods, xkb_keysym_t sym) {
     sym = xkb_keysym_to_lower(sym);
-    
-    mods &= ~WLR_MODIFIER_CAPS;
-    mods &= ~WLR_MODIFIER_MOD2;
+    mods &= ~(WLR_MODIFIER_CAPS | WLR_MODIFIER_MOD2);
     
     struct hermit_config *config = server->config;
-        wlr_log(WLR_INFO, "handle_keybind: mods=0x%x sym=0x%x keybind_count=%d",
-        mods, sym, server->config->keybind_count);
     for (int i=0; i<config->keybind_count; i++) {
         struct hermit_keybind *bind = &config->keybinds[i];
-                wlr_log(WLR_INFO, "  bind[%d]: mods=0x%x sym=0x%x",
-            i, bind->modifiers, bind->key);
-        if (bind->modifiers == mods && bind->key == sym) {
-                        wlr_log(WLR_INFO, "  MATCHED bind[%d]", i);
-            switch (bind->action) {
-                case HERMIT_ACTION_EXEC:
-                    wlr_log(WLR_INFO, "Executing %s", bind->arg);
-                    if (fork() == 0) {
-                        setenv("WAYLAND_DISPLAY", server->socket, true);
-                        execl("/bin/sh", "/bin/sh", "-c", bind->arg, NULL);
-                    }
-                    break;
-                case HERMIT_ACTION_WORKSPACE: {
-                    int index = atoi(bind->arg);
-                    struct hermit_output *output = hermit_output_for_workspace(server, index);
-                    if (output)
-                        hermit_workspace_switch(output, index);
-                    break;
+        if (bind->modifiers != mods || bind->key != sym)
+            continue;
+        switch (bind->action) {
+            case HERMIT_ACTION_EXEC:
+                if (fork() == 0) {
+                    setenv("WAYLAND_DISPLAY", server->socket, true);
+                    execl("/bin/sh", "/bin/sh", "-c", bind->arg, NULL);
                 }
-                case HERMIT_ACTION_MOVE_TO_WORKSPACE: {
-                    int index = atoi(bind->arg);
-                    if (server->focused_view)
-                        hermit_workspace_move_view(server->focused_view, index);
-                    break;
+                break;
+            case HERMIT_ACTION_QUIT:
+                wl_display_terminate(server->display);
+                break;
+            case HERMIT_ACTION_CLOSE:
+                if (server->focused_view)
+                    wlr_xdg_toplevel_send_close(server->focused_view->xdg_toplevel);
+                break;
+            case HERMIT_ACTION_WORKSPACE: {
+                int idx = atoi(bind->arg);
+                struct wlr_output *wlr_out = wlr_output_layout_output_at(
+                    server->output_layout,
+                    server->cursor->x,
+                    server->cursor->y);
+                if (!wlr_out) break;
+                struct hermit_output *out = NULL;
+                struct hermit_output *o;
+                wl_list_for_each(o, &server->outputs, link) {
+                    if (o->wlr_output == wlr_out) { out = o; break; }
                 }
-                case HERMIT_ACTION_QUIT:
-                    wl_display_terminate(server->display);
-                    break;
-                case HERMIT_ACTION_CLOSE:
-                    if (server->focused_view)
-                        wlr_xdg_toplevel_send_close(server->focused_view->xdg_toplevel);
-                    break;
+                if (out) hermit_workspace_switch(out, idx);
+                break;
             }
-            return true;
-          }
+            case HERMIT_ACTION_MOVE_TO_WORKSPACE:
+                if (server->focused_view)
+                    hermit_workspace_move_view(server->focused_view, atoi(bind->arg));
+                break;
+            case HERMIT_ACTION_TOGGLE_MODE:
+            case HERMIT_ACTION_MOVE_WINDOW:
+            case HERMIT_ACTION_FOCUS:
+                break;
+        }
+        return true;
     }
     return false;
 }

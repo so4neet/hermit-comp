@@ -8,12 +8,12 @@
 #include <hermit/output.h>
 #include <hermit/server.h>
 #include <hermit/config.h>
+#include <hermit/logger.h>
 #include <limits.h>
 
 static void output_frame(struct wl_listener *listener, void *data) {
     struct hermit_output *output = wl_container_of(listener, output, frame);
     struct wlr_scene *scene = output->server->scene;
-    
     struct wlr_scene_output *scene_output = wlr_scene_get_scene_output(scene, output->wlr_output);
     
     wlr_scene_output_commit(scene_output, NULL);
@@ -39,13 +39,11 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 }
 
 static struct hermit_monitor_config *find_monitor_config(struct hermit_server *server, const char *name) {
-    struct hermit_config *config = server->config;
     struct hermit_monitor_config *wildcard = NULL;
-    
-    for (int i=0; i<config->monitor_count; i++) {
-        struct hermit_monitor_config *mon = &config->monitors[i];
-        if (strcmp(mon->name, name) == 0)
-            return mon;
+    for (int i=0; i<server->config->monitor_count; i++) {
+        struct hermit_monitor_config *mon = &server->config->monitors[i];
+        if (strcmp(mon->name, name) == 0) return mon;
+        if (strcmp(mon->name, "*") == 0) wildcard = mon;
     }
     return wildcard;
 }
@@ -73,7 +71,7 @@ void hermit_outputs_apply_config(struct hermit_server *server) {
                 }
             }
             if (best) {
-                wlr_log(WLR_INFO, "Applying mode %dx%d@%dmHz on %s",
+                hlog_info("Applying mode %dx%d@%dmHz on %s",
                     best->width, best->height, best->refresh,
                     output->wlr_output->name);
                 wlr_output_state_set_mode(&state, best);
@@ -81,8 +79,8 @@ void hermit_outputs_apply_config(struct hermit_server *server) {
         }
 
         bool ok = wlr_output_commit_state(output->wlr_output, &state);
-        wlr_log(WLR_INFO, "Mode commit for %s: %s",
-            output->wlr_output->name, ok ? "ok" : "FAILED");
+        hlog_error("Mode commit for %s: %s",
+            output->wlr_output->name, ok ? "SUCCEEDED" : "FAILED");
         wlr_output_state_finish(&state);
 
         if (mon->x != 0 || mon->y != 0) {

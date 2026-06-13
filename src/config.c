@@ -9,6 +9,7 @@
 #include <wlr/util/log.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <hermit/config.h>
+#include <hermit/logger.h>
 
 static uint32_t parse_modifier(const char *name) {
     if (strcasecmp(name, "SUPER") == 0 || strcasecmp(name, "MOD4") == 0)
@@ -19,7 +20,7 @@ static uint32_t parse_modifier(const char *name) {
         return WLR_MODIFIER_CTRL;
     if (strcasecmp(name, "SHIFT") == 0)
         return WLR_MODIFIER_SHIFT;
-    wlr_log(WLR_ERROR, "Unknown mod: %s", name);
+    hlog_warn("Unknown mod: %s", name);
     return 0;
 }
 
@@ -42,13 +43,13 @@ static bool parse_key_combo(const char *combo, uint32_t *mods_out, uint32_t *key
     }
     
     if (!last) {
-        wlr_log(WLR_ERROR, "No key in combo: %s", combo);
+        hlog_warn("No key in combo: %s", combo);
         return false;
     }
     
     xkb_keysym_t sym = xkb_keysym_from_name(last, XKB_KEYSYM_CASE_INSENSITIVE);
     if (sym == XKB_KEY_NoSymbol) {
-        wlr_log(WLR_ERROR, "Unknown key: %s", last);
+        hlog_warn("Unknown key: %s", last);
         return false;
     }
     *key_out = sym;
@@ -78,7 +79,7 @@ static bool parse_action(const char *action_str, const char *arg, struct hermit_
         bind->action = HERMIT_ACTION_MOVE_TO_WORKSPACE;
         strncpy(bind->arg, arg ? arg : "", sizeof(bind->arg)-1);
     } else {
-        wlr_log(WLR_ERROR, "Unknown action: %s", action_str);
+        hlog_warn("Unknown action: %s", action_str);
         return false;
     }
     return true;
@@ -107,7 +108,7 @@ static void parse_line(struct hermit_config *config, const char *key, const char
             config->default_mode = HERMIT_MODE_FLOATING;
     } else if (strcmp(key, "bind") == 0) {
         if (config->keybind_count >= HERMIT_MAX_BINDS) {
-            wlr_log(WLR_ERROR, "Max keybinds met.");
+            hlog_warn("Max keybinds met.");
             return;
         }
         
@@ -119,7 +120,7 @@ static void parse_line(struct hermit_config *config, const char *key, const char
         char *arg = strtok(NULL, ",");
         
         if (!combo || !action) {
-            wlr_log(WLR_ERROR, "Invalid bind: %s", value);
+            hlog_warn("Invalid bind: %s", value);
             return;
         }
         
@@ -170,7 +171,7 @@ static void parse_line(struct hermit_config *config, const char *key, const char
 
     } else if (strcmp(key, "monitor") == 0) {
         if (config->monitor_count >= HERMIT_MAX_MONITORS) {
-            wlr_log(WLR_ERROR, "Too many monitors. If you somehow reached this limit submit and issue, weirdo :P");
+            hlog_warn("Too many monitors. If you somehow reached this limit submit an issue.");
             return;
         }
         struct hermit_monitor_config *mon = &config->monitors[config->monitor_count];
@@ -188,7 +189,7 @@ static void parse_line(struct hermit_config *config, const char *key, const char
         char *ws_s   = strtok(NULL, ",");
         
         if (!name_s) {
-            wlr_log(WLR_ERROR, "Invalid monitor config: %s", value);
+            hlog_warn("Invalid monitor config: %s", value);
             return;
         }
         
@@ -225,7 +226,7 @@ static void parse_line(struct hermit_config *config, const char *key, const char
         
         config->monitor_count++;
     } else {
-        wlr_log(WLR_ERROR, "Unknown config key: %s", key);
+        hlog_warn("Unknown config key: %s", key);
     }
 }
 
@@ -248,7 +249,7 @@ struct hermit_config *hermit_config_load(const char *path) {
 
     FILE *f = fopen(path, "r");
     if (!f) {
-        wlr_log(WLR_ERROR, "Could not open config: %s, using defaults", path);
+        hlog_error("Could not open config: %s, using defaults", path);
         return config;
     }
 
@@ -262,7 +263,7 @@ struct hermit_config *hermit_config_load(const char *path) {
 
         char *eq = strchr(s, '=');
         if (!eq) {
-            wlr_log(WLR_ERROR, "Line %d: missing '='", lineno);
+            hlog_warn("Line %d: missing '='", lineno);
             continue;
         }
 
@@ -273,7 +274,7 @@ struct hermit_config *hermit_config_load(const char *path) {
     }
 
     fclose(f);
-    wlr_log(WLR_INFO, "Config loaded from %s (%d keybinds, %d float rules)",
+    hlog_info("Config loaded from %s (%d keybinds, %d float rules)",
         path, config->keybind_count, config->float_rule_count);
     return config;
 }
