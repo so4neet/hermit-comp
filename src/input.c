@@ -107,7 +107,6 @@ static bool handle_keybind(struct hermit_server *server, uint32_t mods, xkb_keys
                     hermit_workspace_move_view(server->focused_view, atoi(bind->arg));
                 break;
             case H_ACTION_TOGGLE_MODE:{
-                struct hermit_server *server_ref = server;
                 enum hermit_mode new_mode = (server->config->default_mode == HERMIT_MODE_FLOATING) ? HERMIT_MODE_TILING : HERMIT_MODE_FLOATING;
                 server->config->default_mode = new_mode;
                 
@@ -169,7 +168,7 @@ static bool handle_keybind(struct hermit_server *server, uint32_t mods, xkb_keys
                 
                 struct hermit_view *view = server->focused_view;
                 struct hermit_bsp_node *leaf = view->bsp_node;
-                if (!leaf) return false;
+                if (!leaf) break;
                 
                 float delta = 0.05f;
                 enum bsp_split_dir dir;

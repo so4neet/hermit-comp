@@ -107,17 +107,24 @@ struct hermit_bsp_node *bsp_find_leaf(struct hermit_bsp_node *root, struct hermi
 
 struct hermit_bsp_node *bsp_find_neighbor(struct hermit_bsp_node *node, enum bsp_split_dir dir, bool forward) {
     if (!node || !node->parent) return NULL;
+    
+    struct hermit_bsp_node *child = node;
     struct hermit_bsp_node *parent = node->parent;
     
-    while(parent) {
+    while (parent) {
         if (parent->split.dir == dir) {
-            bool node_is_left = (parent->split.left == node || bsp_find_leaf(parent->split.left, node->type == BSP_LEAF ? node->leaf.view : NULL));
-            if (forward && parent->split.left == node)
-                return parent->split.right;
-            if (!forward && parent->split.right == node)
-                return parent->split.left;
+            if (forward && parent->split.left == child) {
+                struct hermit_bsp_node *n = parent->split.right;
+                while (n->type == BSP_SPLIT) n = n->split.left;
+                return n;
+            }
+            if (!forward && parent->split.right == child) {
+                struct hermit_bsp_node *n = parent->split.left;
+                while (n->type == BSP_SPLIT) n = n->split.right;
+                return n;
+            }
         }
-        node = parent;
+        child = parent;
         parent = parent->parent;
     }
     return NULL;
