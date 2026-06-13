@@ -12,6 +12,8 @@ struct hermit_view {
     struct wlr_xdg_toplevel  *xdg_toplevel;
     struct wlr_scene_tree    *scene_tree;
     struct hermit_workspace  *workspace;
+    struct hermit_bsp_node   *bsp_node;
+    struct wlr_box           float_box;
     bool                     initial_configure_sent;
     
     struct wl_listener       commit;

@@ -1,18 +1,30 @@
 # Hermit-Comp default config @ ~/.config/hermit/hermit-comp.conf
 # Mode
-default_mode = floating
+default_mode = tiling
 
 # Keybinds
 bind = SUPER+M, toggle_mode
 bind = SUPER+Return, exec, alacritty
-bind = SUPER+SHIFT+Q, close
+bind = SUPER+Q, close
 bind = SUPER+SHIFT+E, quit
-bind = SUPER+Left, move_window, left
-bind = SUPER+Right, move_window, right
-bind = SUPER+Up, move_window, up
-bind = SUPER+Down, move_window, down
+bind = CTRL+SUPER+Left, move_window, left
+bind = CTRL+SUPER+Right, move_window, right
+bind = CTRL+SUPER+Up, move_window, up
+bind = CTRL+SUPER+Down, move_window, down
+bind = SHIFT+SUPER+Left, resize_split, left
+bind = SHIFT+SUPER+Right, resize_split, right
+bind = SHIFT+SUPER+Up, resize_split, up
+bind = SHIFT+SUPER+Down, resize_split, down
 bind = SUPER+1, workspace, 1
 bind = SUPER+2, workspace, 2
+bind = SUPER+3, workspace, 3
+bind = SUPER+4, workspace, 4
+bind = SUPER+5, workspace, 5
+bind = SUPER+6, workspace, 6
+bind = SUPER+7, workspace, 7
+bind = SUPER+8, workspace, 8
+bind = SUPER+9, workspace, 9
+bind = SUPER+0, workspace, 10
 
 # Tiling
 split_ratio = 0.5
@@ -27,7 +39,7 @@ force_float_max_size = 400x400
 
 # Gaps (tiling mode only)
 gaps_inner = 8
-gaps_outer = 16
+gaps_outer = 8
 
 # Borders
 border_width = 2

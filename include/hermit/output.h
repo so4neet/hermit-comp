@@ -15,7 +15,7 @@ struct hermit_output {
     struct wl_listener   request_state;
     struct wl_listener   destroy;
     
-    struct hermit_workspace workspaces[HERMIT_MAX_WORKSPACES];
+    struct hermit_workspace workspaces[10];
     int    workspace_count;
     struct hermit_workspace *active_workspace;
 };

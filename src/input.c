@@ -14,6 +14,8 @@
 #include <hermit/config.h>
 #include <hermit/workspace.h>
 #include <hermit/output.h>
+#include <hermit/bsp.h>
+#include <hermit/logger.h>
 
 static struct hermit_view *view_at(struct hermit_server *server,
                                     double lx, double ly,
@@ -49,6 +51,8 @@ static void process_cursor_motion(struct hermit_server *server, uint32_t time) {
     if (surface) {
         wlr_seat_pointer_notify_enter(server->seat, surface, sx, sy);
         wlr_seat_pointer_notify_motion(server->seat, time, sx, sy);
+        if (view && view != server->focused_view)
+            server->focused_view = view;
     } else {
         wlr_seat_pointer_clear_focus(server->seat);
     }
@@ -70,20 +74,20 @@ static bool handle_keybind(struct hermit_server *server, uint32_t mods, xkb_keys
         if (bind->modifiers != mods || bind->key != sym)
             continue;
         switch (bind->action) {
-            case HERMIT_ACTION_EXEC:
+            case H_ACTION_EXEC:
                 if (fork() == 0) {
                     setenv("WAYLAND_DISPLAY", server->socket, true);
                     execl("/bin/sh", "/bin/sh", "-c", bind->arg, NULL);
                 }
                 break;
-            case HERMIT_ACTION_QUIT:
+            case H_ACTION_QUIT:
                 wl_display_terminate(server->display);
                 break;
-            case HERMIT_ACTION_CLOSE:
+            case H_ACTION_CLOSE:
                 if (server->focused_view)
                     wlr_xdg_toplevel_send_close(server->focused_view->xdg_toplevel);
                 break;
-            case HERMIT_ACTION_WORKSPACE: {
+            case H_ACTION_WORKSPACE: {
                 int idx = atoi(bind->arg);
                 struct wlr_output *wlr_out = wlr_output_layout_output_at(
                     server->output_layout,
@@ -98,13 +102,90 @@ static bool handle_keybind(struct hermit_server *server, uint32_t mods, xkb_keys
                 if (out) hermit_workspace_switch(out, idx);
                 break;
             }
-            case HERMIT_ACTION_MOVE_TO_WORKSPACE:
+            case H_ACTION_MOVE_TO_WORKSPACE:
                 if (server->focused_view)
                     hermit_workspace_move_view(server->focused_view, atoi(bind->arg));
                 break;
-            case HERMIT_ACTION_TOGGLE_MODE:
-            case HERMIT_ACTION_MOVE_WINDOW:
-            case HERMIT_ACTION_FOCUS:
+            case H_ACTION_TOGGLE_MODE:{
+                struct hermit_server *server_ref = server;
+                enum hermit_mode new_mode = (server->config->default_mode == HERMIT_MODE_FLOATING) ? HERMIT_MODE_TILING : HERMIT_MODE_FLOATING;
+                server->config->default_mode = new_mode;
+                
+                struct hermit_output *out;
+                wl_list_for_each(out, &server->outputs, link) {
+                    for (int i=0; i<out->workspace_count; i++) {
+                        struct hermit_workspace *ws = &out->workspaces[i];
+                        if (new_mode == HERMIT_MODE_TILING) {
+                            bsp_build_from_workspace(ws, server->config->split_ratio);
+                            if (ws->is_active && ws->bsp_root) {
+                                struct wlr_box box;
+                                wlr_output_layout_get_box(server->output_layout, out->wlr_output, &box);
+                                box.x = 0; box.y = 0;
+                                bsp_apply_layout(ws->bsp_root, box, server->config->gaps_inner, server->config->gaps_outer, true);
+                            }
+                        } else {
+                            struct hermit_view *view;
+                            wl_list_for_each(view, &ws->views, link) {
+                                wlr_scene_node_set_position(&view->scene_tree->node, view->float_box.x, view->float_box.y);
+                                wlr_xdg_toplevel_set_size(view->xdg_toplevel, view->float_box.width, view->float_box.height);
+                            }
+                            bsp_clear(ws);
+                        }
+                    }
+                }
+                hlog_info("Mode switched to %s", new_mode == HERMIT_MODE_TILING ? "tiling" : "floating");
+                break;
+            }
+            case H_ACTION_MOVE_WINDOW: {
+                if (!server->focused_view) break;
+                if (server->config->default_mode != HERMIT_MODE_TILING) break;
+                
+                enum bsp_split_dir dir;
+                bool forward;
+                if (strcmp(bind->arg, "left")==0) {dir=BSP_SPLIT_HORZ; forward = false;}
+                else if (strcmp(bind->arg, "right")==0) {dir=BSP_SPLIT_HORZ; forward = true;}
+                else if (strcmp(bind->arg, "up")==0) {dir=BSP_SPLIT_VERT; forward = false;}
+                else {dir=BSP_SPLIT_VERT; forward = true;}
+                struct hermit_view *view = server->focused_view;
+                struct hermit_bsp_node *leaf = view->bsp_node;
+                if (!leaf) break;
+                
+                struct hermit_bsp_node *neighbor = bsp_find_neighbor(leaf, dir, forward);
+                if (neighbor) {
+                    bsp_swap(leaf, neighbor);
+                    struct hermit_workspace *ws = view->workspace;
+                    struct wlr_box box;
+                    wlr_output_layout_get_box(server->output_layout, ws->output->wlr_output, &box);
+                    box.x = 0; box.y = 0;
+                    bsp_apply_layout(ws->bsp_root, box, server->config->gaps_inner, server->config->gaps_outer, true);
+                } else {
+                    // cross monitor move
+                }
+                break;
+            }
+            case H_ACTION_RESIZE_SPLIT: {
+                if (!server->focused_view) break;
+                if (server->config->default_mode != HERMIT_MODE_TILING) break;
+                
+                struct hermit_view *view = server->focused_view;
+                struct hermit_bsp_node *leaf = view->bsp_node;
+                if (!leaf) return false;
+                
+                float delta = 0.05f;
+                enum bsp_split_dir dir;
+                if (strcmp(bind->arg, "left")==0) {dir=BSP_SPLIT_HORZ; delta=-delta;}
+                else if (strcmp(bind->arg, "right")==0) {dir=BSP_SPLIT_HORZ;}
+                else if (strcmp(bind->arg, "up")==0) {dir=BSP_SPLIT_VERT; delta=-delta;}
+                else {dir=BSP_SPLIT_VERT;}
+                bsp_resize(leaf, dir, delta);
+                struct hermit_workspace *ws = view->workspace;
+                struct wlr_box box;
+                wlr_output_layout_get_box(server->output_layout, ws->output->wlr_output, &box);
+                box.x = 0; box.y = 0;
+                bsp_apply_layout(ws->bsp_root, box, server->config->gaps_inner, server->config->gaps_outer, true);
+                break;
+            }
+            case H_ACTION_FOCUS:
                 break;
         }
         return true;

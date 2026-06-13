@@ -2,8 +2,7 @@
 
 #include <wayland-server-core.h>
 #include <stdbool.h>
-
-#define HERMIT_MAX_WORKSPACES    10 // SET THIS TO BE SCALED WITH NUMBER OF MONITORS
+#include <hermit/bsp.h>
 
 struct hermit_server;
 struct hermit_output;
@@ -14,6 +13,7 @@ struct hermit_workspace {
     struct hermit_output *output;
     struct wl_list views;
     bool is_active;
+    struct hermit_bsp_node *bsp_root;
 };
 
 void hermit_workspaces_init(struct hermit_server *server);

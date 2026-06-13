@@ -58,25 +58,28 @@ static bool parse_key_combo(const char *combo, uint32_t *mods_out, uint32_t *key
 
 static bool parse_action(const char *action_str, const char *arg, struct hermit_keybind *bind) {
     if (strcasecmp(action_str, "exec") == 0) {
-        bind->action = HERMIT_ACTION_EXEC;
+        bind->action = H_ACTION_EXEC;
         strncpy(bind->arg, arg ? arg : "", sizeof(bind->arg)-1);
     } else if (strcasecmp(action_str, "close") == 0) {
-        bind->action = HERMIT_ACTION_CLOSE;
+        bind->action = H_ACTION_CLOSE;
     } else if (strcasecmp(action_str, "quit") == 0) {
-        bind->action = HERMIT_ACTION_QUIT;
+        bind->action = H_ACTION_QUIT;
     } else if (strcasecmp(action_str, "toggle_mode") == 0) {
-        bind->action = HERMIT_ACTION_TOGGLE_MODE;
+        bind->action = H_ACTION_TOGGLE_MODE;
     } else if (strcasecmp(action_str, "move_window") == 0) {
-        bind->action = HERMIT_ACTION_MOVE_WINDOW;
+        bind->action = H_ACTION_MOVE_WINDOW;
         strncpy(bind->arg, arg ? arg : "", sizeof(bind->arg)-1);
     } else if (strcasecmp(action_str, "focus") == 0) {
-        bind->action = HERMIT_ACTION_FOCUS;
+        bind->action = H_ACTION_FOCUS;
         strncpy(bind->arg, arg ? arg : "", sizeof(bind->arg)-1);
     } else if (strcasecmp(action_str, "workspace") == 0) {
-        bind->action = HERMIT_ACTION_WORKSPACE;
+        bind->action = H_ACTION_WORKSPACE;
         strncpy(bind->arg, arg ? arg : "", sizeof(bind->arg)-1);
     } else if (strcasecmp(action_str, "move_to_workspace") == 0) {
-        bind->action = HERMIT_ACTION_MOVE_TO_WORKSPACE;
+        bind->action = H_ACTION_MOVE_TO_WORKSPACE;
+        strncpy(bind->arg, arg ? arg : "", sizeof(bind->arg)-1);
+    } else if (strcasecmp(action_str, "resize_split") == 0) {
+        bind->action = H_ACTION_RESIZE_SPLIT;
         strncpy(bind->arg, arg ? arg : "", sizeof(bind->arg)-1);
     } else {
         hlog_warn("Unknown action: %s", action_str);
